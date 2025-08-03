@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ほしならべ</title>
+    <!-- Google Fonts: M PLUS Rounded 1c -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --board-rows: 18;
+            --board-cols: 21;
+            --highlight-color: rgba(255, 255, 224, 0.3);
+            --font-family: 'M PLUS Rounded 1c', sans-serif;
+            
+            /* 夜空テーマの配色 */
+            --bg-color: #0c1445;
+            --line-color: rgba(167, 199, 231, 0.5);
+            --border-color: #a7c7e7;
+            --stone1-body: #FFD700;
+            --stone1-shadow: #b39700;
+            --stone2-body: #EAEAEA;
+            --stone2-shadow: #c0c0c0;
+            --time-select-color: rgba(173, 216, 230, 0.4); /* 薄い水色 */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: var(--font-family);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .timer-container {
+            position: absolute;
+            top: 15px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        #player1-timer-container { left: 20px; }
+        #player2-timer-container { right: 20px; }
+
+        .timer-label {
+            font-size: 0.9em;
+            color: #fff;
+            opacity: 0.9;
+            margin-bottom: 2px;
+        }
+
+        .timer-display {
+            font-size: 2em;
+            color: var(--border-color);
+            text-shadow: 0 0 5px #000;
+            padding: 0 15px;
+            background-color: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+
+        canvas {
+            border: 10px solid var(--border-color);
+            box-shadow: 0 0 20px rgba(167, 199, 231, 0.5), inset 0 0 15px rgba(0,0,0,0.5);
+            border-radius: 10px;
+            display: block;
+            cursor: pointer;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            color: #333;
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        .modal-content h2 {
+            margin-top: 0;
+            font-size: 2.5em;
+        }
+        
+        #start-screen .modal-content h2 {
+            margin-bottom: 10px;
+        }
+
+        #start-screen .menu-item {
+            padding: 15px 30px;
+            margin: 10px 0;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        #start-screen .menu-item.selected {
+            background-color: var(--highlight-color);
+            border-color: #FFD700;
+        }
+        
+        #time-limit-options {
+            display: block; /* --- 修正点: 常に表示 --- */
+            margin-top: 20px;
+        }
+        #time-limit-options .time-option {
+            display: inline-block;
+            padding: 8px 15px;
+            margin: 0 5px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+        #time-limit-options .time-option.selected {
+            background-color: var(--time-select-color);
+            border-color: var(--border-color);
+        }
+
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .thinking-indicator {
+            display: none;
+            position: fixed;
+            bottom: 15px;
+            right: 20px;
+            font-size: 1.5em;
+            color: white;
+            text-shadow: 0 0 5px black, 0 0 10px black;
+            animation: blink-animation 1.2s infinite ease-in-out;
+            z-index: 200;
+        }
+
+        @keyframes blink-animation {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div id="player1-timer-container" class="timer-container">
+            <div class="timer-label">先手：金の星</div>
+            <div id="player1-timer" class="timer-display"></div>
+        </div>
+        <div id="player2-timer-container" class="timer-container">
+            <div class="timer-label">後手：銀の星</div>
+            <div id="player2-timer" class="timer-display"></div>
+        </div>
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+
+    <div id="start-screen" class="modal" style="display: flex;">
+        <div class="modal-content">
+            <h2>ほしならべ</h2>
+            <p style="font-size: 0.8em; margin-top: -20px; margin-bottom: 30px;">
+                先にタテ・ヨコ・ナナメに４つの星を並べた方の勝ち！
+            </p>
+            <div id="menu-item-1" class="menu-item selected" data-mode="pvp">対人戦モード</div>
+            <div id="menu-item-2" class="menu-item" data-mode="pvc_player_first">練習モード（先手）</div>
+            <div id="menu-item-3" class="menu-item" data-mode="pvc_cpu_first">練習モード（後手）</div>
+            <div id="time-limit-options">
+                <span class="time-option" data-time="30">30秒</span>
+                <span class="time-option selected" data-time="60">1分</span>
+                <span class="time-option" data-time="180">3分</span>
+                <span class="time-option" data-time="300">5分</span>
+                <span class="time-option" data-time="0">無制限</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="game-over-message"></h2>
+            <button id="restart-button">もう一度遊ぶ</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 定数とグローバル変数 ---
+        const ROWS = 18;
+        const COLS = 21;
+        const EMPTY = 0;
+        const BLACK_PLAYER = 1;
+        const WHITE_PLAYER = 2;
+        const WINNING_LENGTH = 4;
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const restartButton = document.getElementById('restart-button');
+        const thinkingIndicator = document.getElementById('cpu-thinking-indicator');
+        
+        const player1TimerContainer = document.getElementById('player1-timer-container');
+        const player2TimerContainer = document.getElementById('player2-timer-container');
+        const player1TimerDisplay = document.getElementById('player1-timer');
+        const player2TimerDisplay = document.getElementById('player2-timer');
+        let player1Time, player2Time, timerInterval, timeLimit;
+
+        let board = [];
+        let currentPlayer;
+        let selectedColumn = -1;
+        let isColumnSelected = false;
+        let gameOver = true;
+        let gameMode = 'pvp';
+        let cellSize, radius;
+        let animationFrameId;
+        
+        let menuItems = document.querySelectorAll('.menu-item');
+        let selectedMenuIndex = 0;
+        let timeOptions = document.querySelectorAll('.time-option');
+        let selectedTimeOption = document.querySelector('.time-option.selected');
+
+        let winningLine = [];
+        let victoryAnimationId = null;
+
+        // --- ゲームの初期化とリセット ---
+        function initGame(mode) {
+            gameMode = mode;
+            board = Array(ROWS).fill(null).map(() => Array(COLS).fill(EMPTY));
+            currentPlayer = BLACK_PLAYER;
+            selectedColumn = Math.floor(COLS / 2);
+            isColumnSelected = false; 
+            gameOver = false;
+            
+            startScreen.style.display = 'none';
+            gameOverModal.style.display = 'none';
+
+            if (timerInterval) clearInterval(timerInterval);
+            timeLimit = parseInt(selectedTimeOption.dataset.time);
+            player1Time = timeLimit;
+            player2Time = timeLimit;
+            updateTimerDisplay();
+            if (timeLimit > 0) startTimer();
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (victoryAnimationId) cancelAnimationFrame(victoryAnimationId);
+            winningLine = [];
+            
+            if (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER) {
+                const firstMoveCol = Math.floor(COLS / 2);
+                board[ROWS - 1][firstMoveCol] = BLACK_PLAYER;
+                currentPlayer = WHITE_PLAYER;
+            }
+            
+            handleResize();
+            gameLoop();
+        }
+
+        // --- 描画関連 ---
+        function handleResize() {
+            const container = document.querySelector('.game-wrapper');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            const aspectRatio = COLS / ROWS;
+            let canvasWidth = containerWidth * 0.9;
+            let canvasHeight = canvasWidth / aspectRatio;
+
+            if (canvasHeight > containerHeight * 0.9) {
+                canvasHeight = containerHeight * 0.9;
+                canvasWidth = canvasHeight * aspectRatio;
+            }
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            cellSize = canvas.width / COLS;
+            radius = cellSize * 0.45;
+
+            if (!gameOver) draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBoard();
+            drawPieces();
+            
+            const isCpuTurn = (gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) ||
+                              (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER);
+
+            if (!gameOver && !isCpuTurn && isColumnSelected) {
+                drawHighlight();
+                drawPrediction();
+            }
+        }
+
+        function gameLoop() {
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function drawBoard() {
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-color');
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--line-color');
+            ctx.lineWidth = 1;
+
+            for (let c = 1; c < COLS; c++) {
+                const x = c * cellSize;
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let r = 1; r < ROWS; r++) {
+                const y = r * cellSize;
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+        }
+
+        function drawPieces() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] !== EMPTY) {
+                        drawPiece(c, r, board[r][c]);
+                    }
+                }
+            }
+        }
+        
+        function drawPiece(c, r, player, transparency = 1) {
+            const x = c * cellSize + cellSize / 2;
+            const y = r * cellSize + cellSize / 2;
+            
+            ctx.save();
+            ctx.globalAlpha = transparency;
+
+            const size = radius * 2;
+            const cornerRadius = size * 0.2; 
+
+            const bodyColor = player === BLACK_PLAYER ? getComputedStyle(document.documentElement).getPropertyValue('--stone1-body') : getComputedStyle(document.documentElement).getPropertyValue('--stone2-body');
+            const shadowColor = player === BLACK_PLAYER ? getComputedStyle(document.documentElement).getPropertyValue('--stone1-shadow') : getComputedStyle(document.documentElement).getPropertyValue('--stone2-shadow');
+
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath(); drawRoundedRect(ctx, x - size / 2 + 3, y - size / 2 + 3, size, size, cornerRadius); ctx.fill();
+
+            const gradient = ctx.createLinearGradient(x - size / 2, y - size / 2, x + size / 2, y + size / 2);
+            gradient.addColorStop(0, bodyColor);
+            gradient.addColorStop(1, shadowColor);
+            ctx.fillStyle = gradient;
+
+            ctx.beginPath(); drawRoundedRect(ctx, x - size / 2, y - size / 2, size, size, cornerRadius); ctx.fill();
+
+            const twinkle = Math.abs(Math.sin(Date.now() / 700 + c * 0.5 + r * 0.3));
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + twinkle * 0.5})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); drawRoundedRect(ctx, x - size / 2 + 2, y - size / 2 + 2, size - 4, size - 4, cornerRadius - 1); ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawRoundedRect(ctx, x, y, width, height, radius) {
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        function drawHighlight() {
+            if (selectedColumn !== -1) {
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--highlight-color');
+                ctx.fillRect(selectedColumn * cellSize, 0, cellSize, canvas.height);
+            }
+        }
+
+        function drawPrediction() {
+            const r = getNextOpenRow(selectedColumn);
+            if (r !== -1) {
+                const predictionTransparency = 0.7;
+                drawPiece(selectedColumn, r, currentPlayer, predictionTransparency);
+            }
+        }
+
+        function animateDrop(col, endRow, player, callback) {
+            let startRow = -1;
+            let currentY = startRow * cellSize + cellSize / 2;
+            const endY = endRow * cellSize + cellSize / 2;
+            const speed = cellSize * 2; 
+
+            isColumnSelected = false;
+
+            function step() {
+                currentY += speed;
+                if (currentY >= endY) {
+                    board[endRow][col] = player;
+                    draw();
+                    callback();
+                } else {
+                    draw();
+                    drawPiece(col, currentY / cellSize, player);
+                    requestAnimationFrame(step);
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        // --- ゲームロジック ---
+        function getNextOpenRow(c) {
+            for (let r = ROWS - 1; r >= 0; r--) if (board[r][c] === EMPTY) return r;
+            return -1;
+        }
+
+        function dropPiece(c) {
+            if (gameOver) return;
+            const r = getNextOpenRow(c);
+            if (r === -1) return;
+
+            gameOver = true;
+            
+            animateDrop(c, r, currentPlayer, () => {
+                if (checkWin(currentPlayer)) {
+                    animateVictoryLine(() => showEndGameModal(currentPlayer));
+                } else if (checkDraw()) {
+                    showEndGameModal(null);
+                } else {
+                    currentPlayer = (currentPlayer === BLACK_PLAYER) ? WHITE_PLAYER : BLACK_PLAYER;
+                    gameOver = false;
+                    
+                    const isCpuTurn = (gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) ||
+                                      (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER);
+
+                    if (isCpuTurn) {
+                        setTimeout(cpuMove, 100);
+                    } else if (timeLimit > 0) {
+                        startTimer();
+                    }
+                }
+            });
+        }
+
+        function checkWin(player) {
+            const line = checkWinOnBoard(board, player);
+            if (line) {
+                winningLine = line;
+                return true;
+            }
+            return false;
+        }
+        function checkDraw() { return board[0].every(cell => cell !== EMPTY); }
+
+        function showEndGameModal(winner, reason = 'win') {
+            gameOver = true;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            if (reason === 'timeout') {
+                const winnerPlayer = winner === BLACK_PLAYER ? '金の星' : '銀の星';
+                gameOverMessage.textContent = `時間切れ！ ${winnerPlayer}の勝利！`;
+            } else if (winner === BLACK_PLAYER) {
+                gameOverMessage.textContent = '金の星の勝利！';
+            } else if (winner === WHITE_PLAYER) {
+                gameOverMessage.textContent = '銀の星の勝利！';
+            } else {
+                gameOverMessage.textContent = '名勝負でした、引き分け！';
+            }
+            gameOverModal.style.display = 'flex';
+        }
+        
+        // --- タイマー関連の関数 ---
+        function updateTimerDisplay() {
+            if (timeLimit > 0) {
+                player1TimerDisplay.textContent = formatTime(player1Time);
+                player2TimerDisplay.textContent = formatTime(player2Time);
+                
+                if (gameMode === 'pvp') {
+                    player1TimerContainer.style.display = 'flex';
+                    player2TimerContainer.style.display = 'flex';
+                } else if (gameMode === 'pvc_player_first') {
+                    player1TimerContainer.style.display = 'flex';
+                    player2TimerContainer.style.display = 'none';
+                } else if (gameMode === 'pvc_cpu_first') {
+                    player1TimerContainer.style.display = 'none';
+                    player2TimerContainer.style.display = 'flex';
+                }
+            } else {
+                player1TimerContainer.style.display = 'none';
+                player2TimerContainer.style.display = 'none';
+            }
+        }
+
+        function formatTime(seconds) {
+            const min = Math.floor(seconds / 60);
+            const sec = seconds % 60;
+            return `${min}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            if (timeLimit <= 0) return;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                if (gameOver) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+
+                if (gameMode === 'pvp') {
+                    if (currentPlayer === BLACK_PLAYER) player1Time--;
+                    else player2Time--;
+                } else if (gameMode === 'pvc_player_first') {
+                    if (currentPlayer === BLACK_PLAYER) player1Time--;
+                } else if (gameMode === 'pvc_cpu_first') {
+                    if (currentPlayer === WHITE_PLAYER) player2Time--;
+                }
+
+                if (player1Time < 0) {
+                    player1Time = 0;
+                    updateTimerDisplay();
+                    showEndGameModal(WHITE_PLAYER, 'timeout');
+                    return;
+                }
+                if (player2Time < 0) {
+                    player2Time = 0;
+                    updateTimerDisplay();
+                    showEndGameModal(BLACK_PLAYER, 'timeout');
+                    return;
+                }
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function animateVictoryLine(callback) {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            const duration = 700;
+            const startTime = Date.now();
+
+            const startX = winningLine[0].c * cellSize + cellSize / 2;
+            const startY = winningLine[0].r * cellSize + cellSize / 2;
+            const endX = winningLine[3].c * cellSize + cellSize / 2;
+            const endY = winningLine[3].r * cellSize + cellSize / 2;
+
+            function animate() {
+                const elapsedTime = Date.now() - startTime;
+                const progress = Math.min(elapsedTime / duration, 1);
+
+                draw();
+
+                const currentX = startX + (endX - startX) * progress;
+                const currentY = startY + (endY - startY) * progress;
+
+                ctx.save();
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = "white";
+                ctx.strokeStyle = `rgba(255, 255, 255, 0.9)`;
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(currentX, currentY);
+                ctx.stroke();
+                ctx.restore();
+
+                if (progress < 1) {
+                    victoryAnimationId = requestAnimationFrame(animate);
+                } else {
+                    startVictoryTwinkle();
+                    setTimeout(callback, 300);
+                }
+            }
+            animate();
+        }
+        
+        function startVictoryTwinkle() {
+            if (victoryAnimationId) cancelAnimationFrame(victoryAnimationId);
+            
+            function twinkleLoop() {
+                draw(); // 盤面と石を再描画
+                
+                const pulse = Math.abs(Math.sin(Date.now() / 400));
+                ctx.save();
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = "white";
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 + pulse * 0.3})`;
+                ctx.lineWidth = 5 + pulse * 5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                const startX = winningLine[0].c * cellSize + cellSize / 2;
+                const startY = winningLine[0].r * cellSize + cellSize / 2;
+                const endX = winningLine[3].c * cellSize + cellSize / 2;
+                const endY = winningLine[3].r * cellSize + cellSize / 2;
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                ctx.restore();
+
+                victoryAnimationId = requestAnimationFrame(twinkleLoop);
+            }
+            twinkleLoop();
+        }
+
+        // --- 入力ハンドラ ---
+        function handleKeyDown(e) {
+            if (gameOver) {
+                if (startScreen.style.display === 'flex') {
+                    handleMenuSelection(e.key);
+                }
+                return;
+            }
+            
+            const isCpuTurn = (gameMode !== 'pvp' && ((gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) || (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER)));
+            if (isCpuTurn) return;
+
+            if (e.key === 'ArrowLeft') {
+                selectedColumn = Math.max(0, selectedColumn - 1);
+                isColumnSelected = true;
+            } else if (e.key === 'ArrowRight') {
+                selectedColumn = Math.min(COLS - 1, selectedColumn + 1);
+                isColumnSelected = true;
+            } else if (e.key === 'Enter') {
+                if (getNextOpenRow(selectedColumn) !== -1) dropPiece(selectedColumn);
+            }
+        }
+        
+        function handleCanvasMouseMove(e) {
+            if (gameOver) return;
+            const isCpuTurn = (gameMode !== 'pvp' && ((gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) || (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER)));
+            if (isCpuTurn) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const hoverCol = Math.floor(x / cellSize);
+
+            if (hoverCol >= 0 && hoverCol < COLS) {
+                 selectedColumn = hoverCol;
+                 isColumnSelected = true;
+            }
+        }
+
+        function handleCanvasMouseLeave(e) { if (!gameOver) isColumnSelected = false; }
+
+        function handleCanvasClick(e) {
+            if (gameOver) return;
+            const isCpuTurn = (gameMode !== 'pvp' && ((gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) || (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER)));
+            if (isCpuTurn) return;
+
+            if (isColumnSelected && getNextOpenRow(selectedColumn) !== -1) dropPiece(selectedColumn);
+        }
+
+        // --- スタート画面のロジック ---
+        function handleMenuSelection(key) {
+            const currentSelection = menuItems[selectedMenuIndex];
+            currentSelection.classList.remove('selected');
+            
+            if (key === 'ArrowUp') selectedMenuIndex = (selectedMenuIndex - 1 + menuItems.length) % menuItems.length;
+            else if (key === 'ArrowDown') selectedMenuIndex = (selectedMenuIndex + 1) % menuItems.length;
+            else if (key === 'Enter') {
+                initGame(currentSelection.dataset.mode);
+                return;
+            }
+            
+            const newSelection = menuItems[selectedMenuIndex];
+            newSelection.classList.add('selected');
+        }
+        
+        function showStartScreen() {
+            if (victoryAnimationId) {
+                cancelAnimationFrame(victoryAnimationId);
+                victoryAnimationId = null;
+            }
+            gameOverModal.style.display = 'none';
+            startScreen.style.display = 'flex';
+        }
+
+        function initializeEventListeners() {
+            window.addEventListener('resize', handleResize);
+            window.addEventListener('keydown', handleKeyDown);
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+            canvas.addEventListener('click', handleCanvasClick);
+            
+            restartButton.addEventListener('click', showStartScreen);
+
+            menuItems.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    if (index === selectedMenuIndex) {
+                        initGame(item.dataset.mode);
+                    } else {
+                        menuItems[selectedMenuIndex].classList.remove('selected');
+                        selectedMenuIndex = index;
+                        item.classList.add('selected');
+                    }
+                });
+            });
+
+            timeOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    selectedTimeOption.classList.remove('selected');
+                    option.classList.add('selected');
+                    selectedTimeOption = option;
+                });
+            });
+        }
+
+        // --- AI ロジック ---
+        const AI_SEARCH_DEPTH = 2;
+        function cpuMove() {
+            if (gameOver) return;
+            gameOver = true;
+            
+            setTimeout(() => {
+                const bestMove = findBestMove(board);
+                                
+                if (bestMove.col !== -1) {
+                    selectedColumn = bestMove.col;
+                    gameOver = false;
+                    dropPiece(bestMove.col);
+                } else {
+                    gameOver = false;
+                }
+            }, 50);
+        }
+        
+        function findBestMove(currentBoard) {
+            let bestScore = -Infinity;
+            let bestCol = -1;
+            const cpuPlayer = (gameMode === 'pvc_cpu_first') ? BLACK_PLAYER : WHITE_PLAYER;
+            const opponent = (cpuPlayer === BLACK_PLAYER) ? WHITE_PLAYER : BLACK_PLAYER;
+
+            for (let c = 0; c < COLS; c++) {
+                const r = getNextOpenRowForBoard(currentBoard, c);
+                if (r !== -1) {
+                    currentBoard[r][c] = cpuPlayer;
+                    if (checkWinOnBoard(currentBoard, cpuPlayer)) { currentBoard[r][c] = EMPTY; return { col: c }; }
+                    currentBoard[r][c] = EMPTY;
+                }
+            }
+            for (let c = 0; c < COLS; c++) {
+                const r = getNextOpenRowForBoard(currentBoard, c);
+                if (r !== -1) {
+                    currentBoard[r][c] = opponent;
+                    if (checkWinOnBoard(currentBoard, opponent)) { currentBoard[r][c] = EMPTY; return { col: c }; }
+                    currentBoard[r][c] = EMPTY;
+                }
+            }
+
+            const availableMoves = [];
+            for(let c = 0; c < COLS; c++) if (getNextOpenRowForBoard(currentBoard, c) !== -1) availableMoves.push(c);
+            availableMoves.sort((a, b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
+
+            for (const c of availableMoves) {
+                const r = getNextOpenRowForBoard(currentBoard, c);
+                currentBoard[r][c] = cpuPlayer;
+                const score = minimax(currentBoard, AI_SEARCH_DEPTH, -Infinity, Infinity, false, cpuPlayer);
+                currentBoard[r][c] = EMPTY;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCol = c;
+                }
+            }
+            
+            if (bestCol === -1 && availableMoves.length > 0) bestCol = availableMoves[0];
+            return { col: bestCol };
+        }
+
+        function minimax(currentBoard, depth, alpha, beta, isMaximizing, cpuPlayer) {
+            const opponent = (cpuPlayer === BLACK_PLAYER) ? WHITE_PLAYER : BLACK_PLAYER;
+            
+            if (checkWinOnBoard(currentBoard, cpuPlayer)) return 100000 + depth;
+            if (checkWinOnBoard(currentBoard, opponent)) return -100000 - depth;
+            if (depth === 0 || isBoardFull(currentBoard)) return evaluateBoard(currentBoard, cpuPlayer);
+
+            const availableMoves = [];
+            for(let c = 0; c < COLS; c++) if (getNextOpenRowForBoard(currentBoard, c) !== -1) availableMoves.push(c);
+            availableMoves.sort((a, b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (const c of availableMoves) {
+                    const r = getNextOpenRowForBoard(currentBoard, c);
+                    currentBoard[r][c] = cpuPlayer;
+                    const evaluation = minimax(currentBoard, depth - 1, alpha, beta, false, cpuPlayer);
+                    currentBoard[r][c] = EMPTY;
+                    maxEval = Math.max(maxEval, evaluation);
+                    alpha = Math.max(alpha, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (const c of availableMoves) {
+                    const r = getNextOpenRowForBoard(currentBoard, c);
+                    currentBoard[r][c] = opponent;
+                    const evaluation = minimax(currentBoard, depth - 1, alpha, beta, true, cpuPlayer);
+                    currentBoard[r][c] = EMPTY;
+                    minEval = Math.min(minEval, evaluation);
+                    beta = Math.min(beta, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function evaluateBoard(currentBoard, player) {
+            let score = 0;
+            const opponent = (player === BLACK_PLAYER) ? WHITE_PLAYER : BLACK_PLAYER;
+            const centerCol = Math.floor(COLS / 2);
+            for(let r = 0; r < ROWS; r++) {
+                if(currentBoard[r][centerCol] === player) score += 3;
+                if(currentBoard[r][centerCol] === opponent) score -= 3;
+            }
+            score += scoreWindow(currentBoard, player);
+            return score;
+        }
+
+        function scoreWindow(currentBoard, player) {
+            let score = 0;
+            const opponent = (player === BLACK_PLAYER) ? WHITE_PLAYER : BLACK_PLAYER;
+            const check = (arr) => {
+                const pCount = arr.filter(p => p === player).length;
+                const oCount = arr.filter(p => p === opponent).length;
+                const eCount = arr.filter(p => p === EMPTY).length;
+                if (pCount === 4) score += 10000;
+                else if (pCount === 3 && eCount === 1) score += 10;
+                else if (pCount === 2 && eCount === 2) score += 5;
+                if (oCount === 3 && eCount === 1) score -= 80;
+                else if (oCount === 4) score -= 10000;
+            };
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (c <= COLS - 4) check([currentBoard[r][c], currentBoard[r][c+1], currentBoard[r][c+2], currentBoard[r][c+3]]);
+                    if (r <= ROWS - 4) check([currentBoard[r][c], currentBoard[r+1][c], currentBoard[r+2][c], currentBoard[r+3][c]]);
+                    if (r <= ROWS - 4 && c <= COLS - 4) check([currentBoard[r][c], currentBoard[r+1][c+1], currentBoard[r+2][c+2], currentBoard[r+3][c+3]]);
+                    if (r >= 3 && c <= COLS - 4) check([currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBoard[r-3][c+3]]);
+                }
+            }
+            return score;
+        }
+        
+        function getNextOpenRowForBoard(b, c) { for (let r = ROWS - 1; r >= 0; r--) if (b[r][c] === EMPTY) return r; return -1; }
+        function isBoardFull(b) { return b[0].every(cell => cell !== EMPTY); }
+        function checkWinOnBoard(b, p) {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (c <= COLS - 4 && b[r][c] === p && b[r][c+1] === p && b[r][c+2] === p && b[r][c+3] === p) {
+                        return [{r: r, c: c}, {r: r, c: c + 1}, {r: r, c: c + 2}, {r: r, c: c + 3}];
+                    }
+                    if (r <= ROWS - 4 && b[r][c] === p && b[r+1][c] === p && b[r+2][c] === p && b[r+3][c] === p) {
+                        return [{r: r, c: c}, {r: r + 1, c: c}, {r: r + 2, c: c}, {r: r + 3, c: c}];
+                    }
+                    if (r <= ROWS - 4 && c <= COLS - 4 && b[r][c] === p && b[r+1][c+1] === p && b[r+2][c+2] === p && b[r+3][c+3] === p) {
+                        return [{r: r, c: c}, {r: r + 1, c: c + 1}, {r: r + 2, c: c + 2}, {r: r + 3, c: c + 3}];
+                    }
+                    if (r >= 3 && c <= COLS - 4 && b[r][c] === p && b[r-1][c+1] === p && b[r-2][c+2] === p && b[r-3][c+3] === p) {
+                        return [{r: r, c: c}, {r: r - 1, c: c + 1}, {r: r - 2, c: c + 2}, {r: r - 3, c: c + 3}];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // --- 初期化処理 ---
+        initializeEventListeners();
+        showStartScreen();
+    </script>
+</body>
+</html>
