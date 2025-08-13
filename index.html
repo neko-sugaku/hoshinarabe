@@ -10,8 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --board-rows: 18;
-            --board-cols: 21;
+            /* --- 修正点: 盤面のサイズを変更 --- */
+            --board-rows: 11;
+            --board-cols: 13;
             --highlight-color: rgba(255, 255, 224, 0.3);
             --font-family: 'M PLUS Rounded 1c', sans-serif;
             
@@ -199,8 +200,9 @@
 
     <script>
         // --- 定数とグローバル変数 ---
-        const ROWS = 18;
-        const COLS = 21;
+        // --- 修正点: 盤面のサイズを変更 ---
+        const ROWS = 11;
+        const COLS = 13;
         const EMPTY = 0;
         const BLACK_PLAYER = 1;
         const WHITE_PLAYER = 2;
@@ -637,7 +639,6 @@
             }
         }
         
-        // --- 修正点: スマホでのタップずれを解消 ---
         function handleTouch(e) {
             if (gameOver) return;
             e.preventDefault();
@@ -661,7 +662,7 @@
         function handleTouchEnd(e) {
             if (gameOver) return;
             e.preventDefault();
-            handleCanvasClick(e); // クリックと同じロジックを呼び出す
+            handleCanvasClick(e);
         }
 
         function handleCanvasMouseMove(e) {
@@ -718,12 +719,10 @@
             window.addEventListener('resize', handleResize);
             window.addEventListener('keydown', handleKeyDown);
             
-            // Mouse events
             canvas.addEventListener('mousemove', handleCanvasMouseMove);
             canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
             canvas.addEventListener('click', handleCanvasClick);
             
-            // --- 修正点: Touch eventsを追加 ---
             canvas.addEventListener('touchstart', handleTouch, { passive: false });
             canvas.addEventListener('touchmove', handleTouch, { passive: false });
             canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
