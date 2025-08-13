@@ -133,7 +133,7 @@
         }
         
         #time-limit-options {
-            display: block; /* --- 修正点: 常に表示 --- */
+            display: block;
             margin-top: 20px;
         }
         #time-limit-options .time-option {
@@ -155,23 +155,6 @@
             from { opacity: 0; transform: scale(0.9); }
             to { opacity: 1; transform: scale(1); }
         }
-
-        .thinking-indicator {
-            display: none;
-            position: fixed;
-            bottom: 15px;
-            right: 20px;
-            font-size: 1.5em;
-            color: white;
-            text-shadow: 0 0 5px black, 0 0 10px black;
-            animation: blink-animation 1.2s infinite ease-in-out;
-            z-index: 200;
-        }
-
-        @keyframes blink-animation {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
     </style>
 </head>
 <body>
@@ -187,7 +170,6 @@
         </div>
         <canvas id="game-canvas"></canvas>
     </div>
-
 
     <div id="start-screen" class="modal" style="display: flex;">
         <div class="modal-content">
@@ -230,7 +212,6 @@
         const gameOverModal = document.getElementById('game-over-modal');
         const gameOverMessage = document.getElementById('game-over-message');
         const restartButton = document.getElementById('restart-button');
-        const thinkingIndicator = document.getElementById('cpu-thinking-indicator');
         
         const player1TimerContainer = document.getElementById('player1-timer-container');
         const player2TimerContainer = document.getElementById('player2-timer-container');
@@ -609,7 +590,7 @@
             if (victoryAnimationId) cancelAnimationFrame(victoryAnimationId);
             
             function twinkleLoop() {
-                draw(); // 盤面と石を再描画
+                draw();
                 
                 const pulse = Math.abs(Math.sin(Date.now() / 400));
                 ctx.save();
@@ -656,6 +637,33 @@
             }
         }
         
+        // --- 修正点: スマホでのタップずれを解消 ---
+        function handleTouch(e) {
+            if (gameOver) return;
+            e.preventDefault();
+
+            const isCpuTurn = (gameMode !== 'pvp' && ((gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) || (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER)));
+            if (isCpuTurn) return;
+
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const hoverCol = Math.floor(x / cellSize);
+
+                if (hoverCol >= 0 && hoverCol < COLS) {
+                     selectedColumn = hoverCol;
+                     isColumnSelected = true;
+                }
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (gameOver) return;
+            e.preventDefault();
+            handleCanvasClick(e); // クリックと同じロジックを呼び出す
+        }
+
         function handleCanvasMouseMove(e) {
             if (gameOver) return;
             const isCpuTurn = (gameMode !== 'pvp' && ((gameMode === 'pvc_player_first' && currentPlayer === WHITE_PLAYER) || (gameMode === 'pvc_cpu_first' && currentPlayer === BLACK_PLAYER)));
@@ -709,9 +717,16 @@
         function initializeEventListeners() {
             window.addEventListener('resize', handleResize);
             window.addEventListener('keydown', handleKeyDown);
+            
+            // Mouse events
             canvas.addEventListener('mousemove', handleCanvasMouseMove);
             canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
             canvas.addEventListener('click', handleCanvasClick);
+            
+            // --- 修正点: Touch eventsを追加 ---
+            canvas.addEventListener('touchstart', handleTouch, { passive: false });
+            canvas.addEventListener('touchmove', handleTouch, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
             
             restartButton.addEventListener('click', showStartScreen);
 
@@ -741,10 +756,10 @@
         function cpuMove() {
             if (gameOver) return;
             gameOver = true;
-            
+
             setTimeout(() => {
                 const bestMove = findBestMove(board);
-                                
+                
                 if (bestMove.col !== -1) {
                     selectedColumn = bestMove.col;
                     gameOver = false;
